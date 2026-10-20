@@ -1,10 +1,6 @@
-// Гарын 10 хурууны зөв байрлал — 4-р анги, компьютергүй хичээлийн хэвлэх материал.
-// Ажиллуулах: NODE_PATH=$(npm root -g) node source/build.js
+// Хичээлүүдийн хэвлэх материалын нийтлэг хэсэг: гар, гарын зураг, загвар, PDF үүсгэгч.
 const fs = require('fs');
 const path = require('path');
-
-const HTML_PATH = path.join(__dirname, 'material.html');
-const PDF_PATH = path.join(__dirname, '..', 'gar-10-huruu-4-angi.pdf');
 
 const COLORS = { 1: '#FFBF8F', 2: '#93C6FF', 3: '#A3E4A0', 4: '#FFE37D', 5: '#F7A8CB' };
 const FINGER = { 1: 'Эрхий', 2: 'Долоовор', 3: 'Дунд', 4: 'Ядам', 5: 'Чигчий' };
@@ -40,20 +36,27 @@ const numBadge = (cx, cy, n, r = 12) =>
   `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="#333" stroke-width="1.6"/>` +
   `<text x="${cx}" y="${cy + r * 0.45}" text-anchor="middle" font-size="${r * 1.35}" font-weight="700" fill="${INK}">${n}</text>`;
 
-function keyboardSVG({ colored }) {
+// focus: зөвхөн эдгээр латин товчийг тодруулж, бусдыг бүдгэрүүлнэ.
+// latinPrimary: латин үсгийг том, кирилл үсгийг жижгээр харуулна.
+function keyboardSVG({ colored, focus = null, latinPrimary = false }) {
   const U = 100, pad = 4;
   let s = '';
   ROWS.forEach((row, r) => {
     let x = 0;
     row.forEach((k) => {
       const kx = x * U + pad, ky = r * U + pad, w = k.w * U - pad * 2, h = U - pad * 2, cx = kx + w / 2;
-      const fill = colored && k.f ? COLORS[k.f] : '#fff';
-      s += `<rect x="${kx}" y="${ky}" width="${w}" height="${h}" rx="12" fill="${fill}" stroke="${k.home ? INK : '#555'}" stroke-width="${k.home ? 5 : 2}"/>`;
-      if (k.lat) s += `<text x="${kx + 12}" y="${ky + 25}" font-size="19" fill="#555">${esc(k.lat)}</text>`;
-      if (k.mod) s += `<text x="${kx + 12}" y="${ky + h - 14}" font-size="17" fill="#333">${k.label}</text>`;
-      if (k.cyr) s += `<text x="${cx}" y="${ky + 62}" text-anchor="middle" font-size="44" font-weight="700" fill="${INK}">${k.cyr}</text>`;
-      if (k.bump) s += `<line x1="${cx - 15}" y1="${ky + 76}" x2="${cx + 15}" y2="${ky + 76}" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>`;
-      if (k.home) s += house(kx + w - 26, ky + 9, 17);
+      const dim = focus && !(k.lat && focus.includes(k.lat));
+      const fill = dim ? '#f4f4f4' : colored && k.f ? COLORS[k.f] : '#fff';
+      const ink = dim ? '#b4b4b4' : INK, sub = dim ? '#c4c4c4' : '#555';
+      const big = latinPrimary && k.cyr && k.lat ? k.lat.toUpperCase() : k.cyr;
+      const small = latinPrimary && k.cyr && k.lat ? k.cyr : k.lat;
+      s += `<rect x="${kx}" y="${ky}" width="${w}" height="${h}" rx="12" fill="${fill}" stroke="${dim ? '#cfcfcf' : k.home ? INK : '#555'}" stroke-width="${k.home && !dim ? 5 : 2}"/>`;
+      if (small) s += `<text x="${kx + 12}" y="${ky + 25}" font-size="19" fill="${sub}">${esc(small)}</text>`;
+      if (k.mod) s += `<text x="${kx + 12}" y="${ky + h - 14}" font-size="17" fill="${dim ? sub : '#333'}">${k.label}</text>`;
+      if (big) s += `<text x="${cx}" y="${ky + 62}" text-anchor="middle" font-size="44" font-weight="700" fill="${ink}">${big}</text>`;
+      if (k.bump) s += `<line x1="${cx - 15}" y1="${ky + 76}" x2="${cx + 15}" y2="${ky + 76}" stroke="${ink}" stroke-width="5" stroke-linecap="round"/>`;
+      if (k.home) s += house(kx + w - 26, ky + 9, 17, dim ? '#c4c4c4' : INK);
+      if (dim) { x += k.w; return; }
       if (k.space) {
         s += `<text x="${cx}" y="${ky + 56}" text-anchor="middle" font-size="22" fill="#333">Зай авах товч (Space)</text>`;
         s += numBadge(kx + 30, ky + h - 22, 1) + numBadge(kx + w - 30, ky + h - 22, 1);
@@ -159,8 +162,8 @@ function esc(t) {
 }
 
 const houseInline = `<svg class="ico" viewBox="0 0 18 18">${house(0, 0, 18)}</svg>`;
-const TOTAL = 6;
-const footer = (n) => `<div class="foot"><span>Гарын 10 хурууны зөв байрлал · 4-р анги</span><span>${n}/${TOTAL}</span></div>`;
+const makeFooter = (title, total) => (n) =>
+  `<div class="foot"><span>${title} · 4-р анги</span><span>${n}/${total}</span></div>`;
 const nameLine = `<div class="namebox">Нэр: <span class="blank w50"></span> Анги: <span class="blank w15"></span> Огноо: <span class="blank w20"></span></div>`;
 
 function legend(colored) {
@@ -169,7 +172,7 @@ function legend(colored) {
     <b>${FINGER[n]} хуруу</b><span class="cn">${COLOR_NAME[n]}</span></div>`).join('');
 }
 
-function keyboardPage(colored, n) {
+function keyboardPage(colored, n, footer) {
   return `
 <section class="page land">
   <header class="kb-head">
@@ -219,193 +222,6 @@ const wordRow = (word, answer) => `
 <div class="word">
   ${[...word].map((ch, i) => `<div class="wl"><div class="wc">${ch}</div><div class="wa">${answer ? answer[i] : ''}</div></div>`).join('')}
 </div>`;
-
-// ---------- Хуудсууд ----------
-const pages = `
-<section class="page">
-  <div class="kicker">Багшийн хуудас · Хичээлийн төлөвлөгөө</div>
-  <h1>Гарын 10 хурууны зөв байрлал</h1>
-  <div class="meta"><span>4-р анги</span><span>40 минут</span><span>Компьютергүй, цаасан хэрэглэгдэхүүнтэй</span></div>
-  <div class="meta2">Багш: <span class="blank w45"></span> Огноо: <span class="blank w25"></span></div>
-
-  <div class="grid2">
-    <div>
-      <h2>Зорилго</h2>
-      <p>Сурагчид цаасан гар ашиглан компьютерийн гар дээр 10 хуруугаа зөв байрлуулах, товч бүрийг харгалзах хуруугаар дарах анхан шатны дадлыг эзэмшинэ.</p>
-      <h2>Хүлээгдэж буй үр дүн</h2>
-      <ul>
-        <li>10 хурууныхаа нэр, дугаарыг хэлнэ.</li>
-        <li>Үндсэн мөрийн 8 товчийг (<b>Й Ы Б Ө · Р О Л Д</b>) нэрлэж, хуруугаа зөв тавина.</li>
-        <li>Ө ба Р товч дээрх товгор юунд хэрэгтэйг тайлбарлана.</li>
-        <li>Компьютерийн өмнө зөв суух дүрмийг хэлж, үзүүлнэ.</li>
-      </ul>
-    </div>
-    <div>
-      <h2>Хэрэглэгдэхүүн</h2>
-      <ul>
-        <li>Цаасан гар (3-р хуудас) — сурагч бүрт 1</li>
-        <li>Ажлын хуудас 1, 2 (4–5-р хуудас) — сурагч бүрт 1</li>
-        <li>Өнгийн харандаа: ягаан, шар, ногоон, цэнхэр, улбар шар</li>
-        <li>Скоч эсвэл пластилин (товгор хийхэд), самбар</li>
-      </ul>
-      <h2>Хэвлэх заавар</h2>
-      <p>3-р хуудсыг A4 хэвтээ байрлалаар, боломжтой бол <b>өнгөөр</b> хэвлэнэ. Хар цагаанаар хэвлэвэл товч бүр дээрх хурууны дугаараар ялгана, эсвэл 6-р хуудсын будах загварыг ашиглана. Хатуу цаасан дээр хэвлэвэл удаан хэрэглэгдэнэ.</p>
-    </div>
-  </div>
-
-  <h2>Хичээлийн явц</h2>
-  <table class="plan">
-    <tr><th class="t">Хугацаа</th><th class="st">Үе шат</th><th>Багшийн үйл ажиллагаа</th><th>Сурагчийн үйл ажиллагаа</th></tr>
-    <tr><td class="t">0–5 мин</td><td class="st">1. Сэдэл төрүүлэх</td>
-      <td>«Та нар компьютер дээр хэдэн хуруугаар бичдэг вэ?» гэж асууна. Нэг хуруугаар бичихэд гар руугаа байнга харж, удаан бичдэг; 10 хуруугаар бичвэл хурдан, ядрахгүй гэдгийг ярилцана. Хурууны дасгал хийлгэнэ (2-р хуудас).</td>
-      <td>Асуултад хариулж, туршлагаасаа ярина. Хурууны дасгалыг багштай хамт хийнэ.</td></tr>
-    <tr><td class="t">5–15 мин</td><td class="st">2. Шинэ мэдлэг</td>
-      <td>Цаасан гарыг тараана. Самбар болон цаасан гар дээр тайлбарлана: 1) зөв суулт; 2) хурууны нэр, дугаар (1 эрхий … 5 чигчий); 3) үндсэн мөр — зүүн гар <b>Й Ы Б Ө</b>, баруун гар <b>Р О Л Д</b>, эрхий хуруу зай авах товч дээр; 4) Ө ба Р товчны товгор; 5) өнгө бүр — нэг хурууны «байшин». Шүлгийг заана.</td>
-      <td>Цаасан гар дээр товчнуудыг хуруугаараа зааж олно. Ө ба Р товчны зураас дээр жижиг скоч эсвэл пластилин нааж «товгор» хийнэ. Шүлгийг давтана.</td></tr>
-    <tr><td class="t">15–27 мин</td><td class="st">3. Дадлага</td>
-      <td>«Гараа өргө! — Байрандаа!» тоглоом (3 мин). «Багш хэлнэ — хуруу дарна» (5 мин): 2-р хуудасны жагсаалтаас үсэг, үгийг хэлнэ. Ажлын хуудас 1-ийг өгнө (4 мин). Анги дотор тойрч, хурууны байрлалыг засна.</td>
-      <td>Хуруугаа үндсэн мөрөнд тавина. Хэлсэн үсгийг зөв хуруугаар «дарж», хурууныхаа нэрийг чангаар хэлнэ. Ажлын хуудас 1-ийг бөглөнө.</td></tr>
-    <tr><td class="t">27–36 мин</td><td class="st">4. Бататгал</td>
-      <td>Ажлын хуудас 2-ыг өгнө. Хосоороо харилцан шалгуулна.</td>
-      <td>Цаасан гараа ашиглан даалгавруудыг гүйцэтгэнэ. Хосынхоо ажлыг шалгана.</td></tr>
-    <tr><td class="t">36–40 мин</td><td class="st">5. Дүгнэлт, үнэлгээ</td>
-      <td>«3 алтан дүрэм»-ийг давтуулна. Өөрийгөө үнэлэх хэсгийг бөглүүлнэ. Гэрийн даалгавар өгнө.</td>
-      <td>Дүрмийг хэлнэ. Өөрийгөө үнэлнэ.</td></tr>
-  </table>
-
-  <div class="note"><b>Гэрийн даалгавар:</b> Цаасан гараа гэртээ аваачиж өдөр бүр 5 минут «Байрандаа!» дасгал хийнэ. Гэр бүлийнхэндээ 10 хурууны зөв байрлалыг зааж өгнө. Цаг хүрэхгүй бол Ажлын хуудас 2-ын 8–9-р даалгаврыг гэрт хийлгэж болно.</div>
-  ${footer(1)}
-</section>
-
-<section class="page">
-  <div class="kicker">Багшийн хуудас · Туслах материал ба хариу</div>
-  <div class="grid2">
-    <div>
-      <h2>Хурууны дасгал (1–2 мин)</h2>
-      <ol>
-        <li>Нударгаа чанга зангидаад, хуруугаа дэлгэнэ — 5 удаа.</li>
-        <li>Эрхий хуруугаа бусад хуруу бүртэй ээлжлэн хүргэнэ.</li>
-        <li>Хоёр гараа ширээн дээр тавьж, төгөлдөр хуур тоглож буй мэт хуруугаа нэг нэгээр нь өргөнө.</li>
-        <li>Бугуйгаа зөөлөн эргүүлнэ — 5 удаа.</li>
-      </ol>
-    </div>
-    <div>
-      <h2>Шүлэг</h2>
-      <div class="poem">Й, Ы, Б, Ө — зүүн гар,<br>Р, О, Л, Д — баруун гар,<br>Эрхий хоёр — зай дээр,<br>Бэлэн боллоо — бичицгээе!</div>
-    </div>
-  </div>
-
-  <h2>«Гараа өргө! — Байрандаа!» тоглоом</h2>
-  <p>Багш «Гараа өргө!» гэхэд сурагчид хоёр гараа өргөнө. «Байрандаа!» гэхэд гар руугаа харалгүй, товгорыг мэдэрч хуруугаа үндсэн мөрөнд тавина. 5–6 удаа давтана. Хамгийн хурдан, зөв тавьсан эгнээ оноо авна.
-  <br><b>Нэмэлт сорилт:</b> гараа нимгэн цаас эсвэл алчуураар таглаад тоглох.</p>
-
-  <h2>«Багш хэлнэ — хуруу дарна» жагсаалт</h2>
-  <p>Багш үсэг, үгийг хэлэхэд сурагч цаасан гар дээр зөв хуруугаар дарж, хурууны нэрийг хэлнэ. Товч дарсны дараа хуруу заавал үндсэн мөртөө буцна.</p>
-  <table class="dict">
-    <tr><th>Шат 1 · Үндсэн мөр</th><td class="ltr">Ө Р Б О Ы Л Й Д А Х</td></tr>
-    <tr><th>Шат 2 · Дээд мөр</th><td class="ltr">У Ш Э Н Ж Г Ц Ү Ф З</td></tr>
-    <tr><th>Шат 3 · Доод мөр</th><td class="ltr">С И М Т Ч В Я Ь</td></tr>
-    <tr><th>Шат 4 · Үндсэн мөрийн үгс</th><td>ой · ор · ах · хөл · бөх · хар · бор · лаа · өдөр · далай · бороо</td></tr>
-    <tr><th>Шат 5 · Бүх мөрийн үгс</th><td>ус · ном · гэр · мод · нар · ээж · аав · морь · сургууль</td></tr>
-  </table>
-
-  <h2>Хариу</h2>
-  <div class="grid2 answers">
-    <div>
-      <h4>Ажлын хуудас 1</h4>
-      <ol>
-        <li>Хоёр гарт: эрхий 1, долоовор 2, дунд 3, ядам 4, чигчий 5. Өнгө: 1 улбар шар, 2 цэнхэр, 3 ногоон, 4 шар, 5 ягаан.</li>
-        <li>Эрхий, долоовор, дунд, ядам, чигчий.</li>
-        <li>Й Ы Б Ө → 5 4 3 2; Р О Л Д → 2 3 4 5.</li>
-        <li>Ө ба Р. Гар руугаа харалгүйгээр хуруугаа үндсэн мөрөнд зөв тавихад тусалдаг.</li>
-        <li>зүүн · баруун · зай (авах товч)</li>
-      </ol>
-    </div>
-    <div>
-      <h4>Ажлын хуудас 2</h4>
-      <ol start="6">
-        <li>Б зүүн дунд (3) · Р баруун долоовор (2) · Ф зүүн чигчий (5) · А зүүн долоовор (2) · Т баруун долоовор (2) · Ү баруун ядам (4) · Ц зүүн ядам (4) · Я зүүн чигчий (5) · Ш баруун дунд (3) · Д баруун чигчий (5)</li>
-        <li>1 ✓ · 2 ✗ · 3 ✓ · 4 ✗ · 5 ✓ · 6 ✓ · 7 ✗</li>
-        <li>ОР: Б3 Б2 · ХӨЛ: Б2 З2 Б4 · ДАЛАЙ: Б5 З2 Б4 З2 З5 · БОРОО: З3 Б3 Б2 Б3 Б3</li>
-      </ol>
-    </div>
-  </div>
-
-  <div class="note"><b>Анхаарах зүйл:</b> Бугуйг ширээн дээр тулгахгүй, хуруу бага зэрэг бөхийсөн (алим барьсан мэт) байна. Товчийг хүчтэй цохихгүй, зөөлөн дарна. Эхний хичээлд хурдыг биш, <b>зөв байрлалыг</b> үнэлнэ.</div>
-  ${footer(2)}
-</section>
-
-${keyboardPage(true, 3)}
-
-<section class="page ws">
-  <div class="ws-head"><div><div class="kicker">Ажлын хуудас 1</div><h1>Миний 10 хуруу</h1></div></div>
-  ${nameLine}
-
-  <div class="task"><span class="tn">1</span> Хуруу бүрийн үзүүрт байгаа дугуйд хурууны <b>дугаарыг</b> бичээд, хурууг цаасан гар дээрх <b>өнгөөр</b> будаарай. <i>(Эрхий хуруу = 1)</i></div>
-  <div class="ws-hands">${handSVG('L', 'blank')}${handSVG('R', 'blank')}</div>
-
-  <div class="task"><span class="tn">2</span> Хурууны нэрийг нөхөж бичээрэй.</div>
-  <div class="names">
-    <div><span class="nn">1</span>${letterBoxes('Э', 5)} хуруу</div>
-    <div><span class="nn">2</span>${letterBoxes('Д', 8)} хуруу</div>
-    <div><span class="nn">3</span>${letterBoxes('Д', 4)} хуруу</div>
-    <div><span class="nn">4</span>${letterBoxes('Я', 4)} хуруу</div>
-    <div><span class="nn">5</span>${letterBoxes('Ч', 6)} хуруу</div>
-  </div>
-
-  <div class="task"><span class="tn">3</span> Үндсэн мөрийн товчнуудад үсгийг нь бичээд, доор нь аль хуруугаар дарахыг <b>дугаараар</b> бичээрэй.</div>
-  ${homeRowSVG()}
-
-  <div class="task"><span class="tn">4</span> Аль хоёр товч дээр жижиг товгор байдаг вэ? &nbsp;<span class="lb"></span> ба <span class="lb"></span></div>
-  <p class="ans">Товгор юунд хэрэгтэй вэ? <span class="blank w100"></span></p>
-  <p class="ans"><span class="blank w100"></span></p>
-
-  <div class="task"><span class="tn">5</span> Шүлгийг нөхөөрэй.</div>
-  <div class="poem fill">Й, Ы, Б, Ө — <span class="blank w30"></span> гар,<br>Р, О, Л, Д — <span class="blank w30"></span> гар,<br>Эрхий хоёр — <span class="blank w30"></span> дээр,<br>Бэлэн боллоо — бичицгээе!</div>
-  ${footer(4)}
-</section>
-
-<section class="page ws">
-  <div class="ws-head"><div><div class="kicker">Ажлын хуудас 2</div><h1>Аль хуруугаар дарах вэ?</h1></div></div>
-  ${nameLine}
-
-  <div class="task"><span class="tn">6</span> Цаасан гараа хараад, үсэг бүрийг аль гарын аль хуруугаар дарахыг бичээрэй. Эхний мөр жишээ.</div>
-  <div class="tables">
-    ${fingerTable([['Б', true], ['Р'], ['Ф'], ['А'], ['Т']])}
-    ${fingerTable([['Ү'], ['Ц'], ['Я'], ['Ш'], ['Д']])}
-  </div>
-
-  <div class="task"><span class="tn">7</span> Зөв суулт. Зөв бол <b>✓</b>, буруу бол <b>✗</b> тэмдэг тавиарай.</div>
-  <div class="posture-wrap">
-    <ol class="tf">
-      <li><span class="tick"></span>Нуруугаа тэгш барьж сууна.</li>
-      <li><span class="tick"></span>Дэлгэц рүү аль болох ойртож сууна.</li>
-      <li><span class="tick"></span>Хоёр хөл шалан дээр тэгш байна.</li>
-      <li><span class="tick"></span>Товчийг хүчтэй цохиж дарна.</li>
-      <li><span class="tick"></span>Товч дарсны дараа хуруу үндсэн мөртөө буцна.</li>
-      <li><span class="tick"></span>Зай авах товчийг эрхий хуруугаар дарна.</li>
-      <li><span class="tick"></span>Ганцхан долоовор хуруугаар бичих нь зөв.</li>
-    </ol>
-    ${POSTURE}
-  </div>
-
-  <div class="task"><span class="tn">8</span> Үгийг цаасан гар дээрээ «бичээд», үсэг бүрийн доор хурууг нь бичээрэй. <b>З</b> = зүүн гар, <b>Б</b> = баруун гар, тоо = хурууны дугаар.</div>
-  <div class="words">
-    <div class="wex"><span class="exl">Жишээ:</span>${wordRow('ОЙ', ['Б3', 'З5'])}</div>
-    ${wordRow('ОР')}${wordRow('ХӨЛ')}${wordRow('ДАЛАЙ')}${wordRow('БОРОО')}
-  </div>
-
-  <div class="task"><span class="tn">9</span> Өөрийгөө үнэлээрэй. Тохирох нүүрийг будаарай.</div>
-  <table class="self">
-    <tr><th></th><th>Сайн чадна</th><th>Дунд зэрэг</th><th>Дахиад сурна</th></tr>
-    ${['10 хурууныхаа нэрийг мэднэ.', 'Үндсэн мөрийн 8 товчийг хэлж чадна.', 'Гар руугаа харалгүй хуруугаа үндсэн мөрөнд тавьж чадна.', 'Компьютерийн өмнө зөв сууж чадна.']
-      .map((t) => `<tr><td>${t}</td><td>${face('good')}</td><td>${face('mid')}</td><td>${face('bad')}</td></tr>`).join('')}
-  </table>
-  ${footer(5)}
-</section>
-
-${keyboardPage(false, 6)}
-`;
 
 const CSS = `
 @page { margin: 0; }
@@ -507,42 +323,49 @@ table.self { width: 100%; border-collapse: collapse; font-size: 10pt; }
 .face { width: 6.2mm; height: 6.2mm; vertical-align: middle; }
 `;
 
-const html = `<!doctype html>
-<html lang="mn"><head><meta charset="utf-8">
-<title>Гарын 10 хурууны зөв байрлал — 4-р анги</title>
-<style>${CSS}</style></head>
-<body>${pages}</body></html>`;
+
+const baseCSS = CSS;
 
 // Chromium нэг PDF-д босоо, хэвтээ хуудсыг хольж чадахгүй тул тусад нь хэвлээд,
-// pypdf-ээр зөв дарааллаар нийлүүлнэ.
-async function main() {
-  fs.writeFileSync(HTML_PATH, html);
+// pypdf-ээр анхны дарааллаар нь нийлүүлнэ.
+async function render({ title, pages, htmlPath, pdfPath, extraCSS = '' }) {
+  const html = `<!doctype html>
+<html lang="mn"><head><meta charset="utf-8">
+<title>${title}</title>
+<style>${baseCSS}${extraCSS}</style></head>
+<body>${pages}</body></html>`;
+  fs.writeFileSync(htmlPath, html);
+  const order = [...pages.matchAll(/<section class="page( land)?/g)].map((m) => (m[1] ? 'l' : 'p'));
   const { chromium } = require('playwright');
   const { execFileSync } = require('child_process');
   const os = require('os');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gar-'));
   const browser = await chromium.launch();
   const page = await browser.newPage();
-  await page.goto('file://' + HTML_PATH);
+  await page.goto('file://' + htmlPath);
   await page.evaluate(() => document.fonts.ready);
   for (const [cls, width, height] of [['portrait', '210mm', '297mm'], ['landscape', '297mm', '210mm']]) {
     await page.evaluate((c) => { document.body.className = c; }, cls);
     await page.pdf({ path: path.join(tmp, cls + '.pdf'), width, height, printBackground: true });
   }
   await browser.close();
-  // Хуудасны дараалал: босоо 1,2 · хэвтээ 1 · босоо 3,4 · хэвтээ 2
   execFileSync('python3', ['-c', `
 import sys
 from pypdf import PdfReader, PdfWriter
-p, l = PdfReader(sys.argv[1]), PdfReader(sys.argv[2])
+src = {'p': PdfReader(sys.argv[1]), 'l': PdfReader(sys.argv[2])}
+idx = {'p': 0, 'l': 0}
 w = PdfWriter()
-for src, i in [(p, 0), (p, 1), (l, 0), (p, 2), (p, 3), (l, 1)]:
-    w.add_page(src.pages[i])
-w.add_metadata({'/Title': 'Гарын 10 хурууны зөв байрлал — 4-р анги'})
-w.write(sys.argv[3])
-`, path.join(tmp, 'portrait.pdf'), path.join(tmp, 'landscape.pdf'), PDF_PATH]);
+for kind in sys.argv[3]:
+    w.add_page(src[kind].pages[idx[kind]])
+    idx[kind] += 1
+w.add_metadata({'/Title': sys.argv[5]})
+w.write(sys.argv[4])
+`, path.join(tmp, 'portrait.pdf'), path.join(tmp, 'landscape.pdf'), order.join(''), pdfPath, title]);
   fs.rmSync(tmp, { recursive: true, force: true });
-  console.log('PDF:', PDF_PATH);
+  console.log('PDF:', pdfPath);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+module.exports = {
+  COLORS, FINGER, COLOR_NAME, INK, house, numBadge, keyboardSVG, homeRowSVG, handSVG, POSTURE, face, esc,
+  houseInline, makeFooter, nameLine, legend, keyboardPage, letterBoxes, fingerTable, wordRow, render,
+};
